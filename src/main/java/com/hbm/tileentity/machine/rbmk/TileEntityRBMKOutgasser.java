@@ -1,7 +1,6 @@
 package com.hbm.tileentity.machine.rbmk;
 
-import api.hbm.fluidmk2.IFluidStandardSenderMK2;
-
+import api.hbm.fluid.IFluidStandardSender;
 import com.hbm.blocks.ModBlocks;
 import com.hbm.entity.projectile.EntityRBMKDebris.DebrisType;
 import com.hbm.handler.CompatHandler;
@@ -13,9 +12,9 @@ import com.hbm.inventory.fluid.Fluids;
 import com.hbm.inventory.fluid.tank.FluidTank;
 import com.hbm.inventory.gui.GUIRBMKOutgasser;
 import com.hbm.inventory.recipes.OutgasserRecipes;
-import com.hbm.inventory.recipes.OutgasserRecipes.OutgasserRecipe;
 import com.hbm.lib.Library;
 import com.hbm.tileentity.machine.rbmk.TileEntityRBMKConsole.ColumnType;
+import com.hbm.util.Tuple.Pair;
 import com.hbm.util.fauxpointtwelve.DirPos;
 import cpw.mods.fml.common.Optional;
 import cpw.mods.fml.relauncher.Side;
@@ -32,7 +31,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
 
 @Optional.InterfaceList({@Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "OpenComputers")})
-public class TileEntityRBMKOutgasser extends TileEntityRBMKSlottedBase implements IRBMKFluxReceiver, IFluidStandardSenderMK2, SimpleComponent, CompatHandler.OCComponent {
+public class TileEntityRBMKOutgasser extends TileEntityRBMKSlottedBase implements IRBMKFluxReceiver, IFluidStandardSender, SimpleComponent, CompatHandler.OCComponent {
 
 	public FluidTank gas;
 	public double progress;
@@ -53,8 +52,13 @@ public class TileEntityRBMKOutgasser extends TileEntityRBMKSlottedBase implement
 
 		if(!worldObj.isRemote) {
 
-			if(!canProcess()) this.progress = 0;
-			for(DirPos pos : getOutputPos()) if(this.gas.getFill() > 0) this.tryProvide(gas, worldObj, pos);
+			if(!canProcess()) {
+				this.progress = 0;
+			}
+
+			for(DirPos pos : getOutputPos()) {
+				if(this.gas.getFill() > 0) this.sendFluid(gas, worldObj, pos.getX(), pos.getY(), pos.getZ(), pos.getDir());
+			}
 		}
 
 		super.updateEntity();
@@ -109,12 +113,12 @@ public class TileEntityRBMKOutgasser extends TileEntityRBMKSlottedBase implement
 		if(slots[0] == null)
 			return false;
 
-		OutgasserRecipe output = OutgasserRecipes.getOutput(slots[0]);
+		Pair<ItemStack, FluidStack> output = OutgasserRecipes.getOutput(slots[0]);
 
-		if(output == null) return false;
-		if(output.fusionOnly) return false;
+		if(output == null)
+			return false;
 
-		FluidStack fluid = output.liquidOutput;
+		FluidStack fluid = output.getValue();
 
 		if(fluid != null) {
 			if(gas.getTankType() != fluid.type && gas.getFill() > 0) return false;
@@ -122,7 +126,7 @@ public class TileEntityRBMKOutgasser extends TileEntityRBMKSlottedBase implement
 			if(gas.getFill() + fluid.fill > gas.getMaxFill()) return false;
 		}
 
-		ItemStack out = output.solidOutput;
+		ItemStack out = output.getKey();
 
 		if(slots[1] == null || out == null)
 			return true;
@@ -132,15 +136,15 @@ public class TileEntityRBMKOutgasser extends TileEntityRBMKSlottedBase implement
 
 	private void process() {
 
-		OutgasserRecipe output = OutgasserRecipes.getOutput(slots[0]);
+		Pair<ItemStack, FluidStack> output = OutgasserRecipes.getOutput(slots[0]);
 		this.decrStackSize(0, 1);
 		this.progress = 0;
 
-		if(output.liquidOutput != null) {
-			gas.setFill(gas.getFill() + output.liquidOutput.fill);
+		if(output.getValue() != null) {
+			gas.setFill(gas.getFill() + output.getValue().fill);
 		}
 
-		ItemStack out = output.solidOutput;
+		ItemStack out = output.getKey();
 
 		if(out != null) {
 			if(slots[1] == null) {
